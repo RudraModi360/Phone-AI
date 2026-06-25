@@ -837,6 +837,24 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             memoryService.getUserPreferences()
         }
 
+        // === EXTRACTION PIPELINE: Analyze user message for memories ===
+        withContext(Dispatchers.IO) {
+            try {
+                val extractions = com.example.memory.UserMessageExtractor.extract(userText)
+                for (extraction in extractions) {
+                    memoryService.saveExtractedMemory(
+                        type = extraction.type,
+                        title = extraction.title,
+                        content = extraction.content,
+                        confidence = extraction.confidence
+                    )
+                    Log.d("ChatViewModel", "Extracted memory: [${extraction.type.value}] ${extraction.title}")
+                }
+            } catch (e: Exception) {
+                Log.e("ChatViewModel", "Memory extraction failed", e)
+            }
+        }
+
         // Get available tools descriptions
         val toolDescriptions = com.example.tools.ToolRegistry.getToolDescriptions()
         
@@ -1304,15 +1322,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 )
 
-                // Automatically save assistant decisions/learnings to persistent memory
-                if (cleanAiText.contains("learn", ignoreCase = true) || cleanAiText.contains("decid", ignoreCase = true) || cleanAiText.contains("configur", ignoreCase = true)) {
-                    val title = "AILearning: " + userText.take(30) + "..."
-                    memoryService.addMemory(
+                // Save AI response insights to memory (better heuristics)
+                val shouldSaveResponse = cleanAiText.length > 50 && (
+                    cleanAiText.contains("learn", ignoreCase = true) ||
+                    cleanAiText.contains("decid", ignoreCase = true) ||
+                    cleanAiText.contains("configur", ignoreCase = true) ||
+                    cleanAiText.contains("recommend", ignoreCase = true) ||
+                    cleanAiText.contains("best practice", ignoreCase = true) ||
+                    cleanAiText.contains("you should", ignoreCase = true)
+                )
+                if (shouldSaveResponse) {
+                    val title = "Insight: " + userText.take(40).trim()
+                    memoryService.saveExtractedMemory(
                         type = com.example.memory.MemoryType.PROJECT,
                         title = title,
                         content = cleanAiText.take(300),
-                        tags = listOf("auto_history"),
-                        projectId = sId
+                        confidence = 0.6f
                     )
                 }
             }

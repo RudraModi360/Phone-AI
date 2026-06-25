@@ -5,10 +5,10 @@ import kotlinx.coroutines.flow.Flow
 import org.json.JSONArray
 
 enum class MemoryType(val value: String) {
-    USER("user"),           // Who the user is (name, role, preferences, habits)
-    FEEDBACK("feedback"),   // What the user likes/dislikes (corrections, preferences)
-    PROJECT("project"),     // Project-specific context (architecture, conventions)
-    REFERENCE("reference")  // Reference material (API docs, patterns, examples)
+    USER("user"),
+    FEEDBACK("feedback"),
+    PROJECT("project"),
+    REFERENCE("reference")
 }
 
 class MemoryService(private val memoryDao: MemoryDao) {
@@ -52,9 +52,6 @@ class MemoryService(private val memoryDao: MemoryDao) {
         memoryDao.deleteMemory(id)
     }
     
-    /**
-     * Get relevant memories for a query (for RAG).
-     */
     suspend fun getRelevantMemories(query: String, projectId: String? = null, limit: Int = 5): List<MemoryEntry> {
         val escapedQuery = escapeLikeQuery(query)
         return if (projectId != null) {
@@ -64,12 +61,8 @@ class MemoryService(private val memoryDao: MemoryDao) {
         }
     }
     
-    /**
-     * Format memories for injection into system prompt.
-     */
     fun formatForPrompt(memories: List<MemoryEntry>): String {
         if (memories.isEmpty()) return ""
-        
         return buildString {
             appendLine("\n## Relevant Memories")
             memories.forEach { memory ->
@@ -78,19 +71,34 @@ class MemoryService(private val memoryDao: MemoryDao) {
         }
     }
 
-    /**
-     * Get user preferences from memory.
-     */
     suspend fun getUserPreferences(): List<MemoryEntry> {
         return memoryDao.getMemoriesByType(MemoryType.USER.value)
     }
 
     /**
-     * Replace a preference: delete old version, insert new.
-     * Used by processing pipeline to update deduplicated entries.
+     * Save an extracted memory. If a memory with the same title and type exists,
+     * update its content instead of creating a duplicate.
      */
-    suspend fun replacePreference(title: String, newContent: String, tags: List<String> = emptyList()) {
-        memoryDao.deleteByTypeAndTitle(MemoryType.USER.value, title)
-        addMemory(MemoryType.USER, title, newContent, tags)
+    suspend fun saveExtractedMemory(
+        type: MemoryType,
+        title: String,
+        content: String,
+        confidence: Float
+    ): Long {
+        // Check for existing memory with same title and type
+        val existing = memoryDao.findByTitleAndType(title, type.value)
+        return if (existing != null) {
+            // Update existing: keep higher relevance, update content
+            val updated = existing.copy(
+                content = content,
+                relevanceScore = maxOf(existing.relevanceScore, confidence),
+                usageCount = existing.usageCount + 1
+            )
+            memoryDao.updateMemory(updated)
+            existing.id
+        } else {
+            // Insert new
+            addMemory(type, title, content, listOf("auto_extracted"))
+        }
     }
 }

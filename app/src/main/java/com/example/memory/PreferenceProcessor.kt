@@ -10,7 +10,7 @@ import com.example.data.MemoryEntry
  */
 object PreferenceProcessor {
 
-    private const val MAX_CONTEXT_CHARS = 500
+    private const val MAX_CONTEXT_CHARS = 800
 
     /**
      * Full processing pipeline. Call this before injecting into system prompt.

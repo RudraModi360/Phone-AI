@@ -94,6 +94,9 @@ interface MemoryDao {
 
     @Query("DELETE FROM memory_entries WHERE memoryType = :type AND title = :title")
     suspend fun deleteByTypeAndTitle(type: String, title: String)
+
+    @Query("SELECT * FROM memory_entries WHERE title = :title AND memoryType = :type LIMIT 1")
+    suspend fun findByTitleAndType(title: String, type: String): MemoryEntry?
 }
 
 @Dao

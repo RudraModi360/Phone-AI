@@ -18,7 +18,7 @@ import java.util.*
  */
 class MemoryTool(private val memoryService: MemoryService) : BaseTool {
     override val name = "memory"
-    override val description = "Store, search, and retrieve persistent memories (learnings, patterns, decisions)"
+    override val description = "Store, search, and retrieve persistent memories (user info, feedback, project context, references)"
     override val riskLevel = RiskLevel.SAFE
     
     override val parameters = Parameters(
@@ -30,7 +30,7 @@ class MemoryTool(private val memoryService: MemoryService) : BaseTool {
             ),
             "type" to PropertySchema(
                 type = "STRING",
-                description = "Memory type: approach, learning, key_step, pattern, preference, decision, context"
+                description = "Memory type: user, feedback, project, reference"
             ),
             "title" to PropertySchema(
                 type = "STRING",
@@ -163,13 +163,10 @@ class MemoryTool(private val memoryService: MemoryService) : BaseTool {
             
             for ((type, typeMemories) in grouped) {
                 val icon = when (type) {
-                    "learning" -> "💡"
-                    "pattern" -> "🔄"
-                    "decision" -> "⚖️"
-                    "preference" -> "⭐"
-                    "approach" -> "🎯"
-                    "key_step" -> "🔑"
-                    "context" -> "📎"
+                    "user" -> "👤"
+                    "feedback" -> "💬"
+                    "project" -> "📁"
+                    "reference" -> "📚"
                     else -> "📌"
                 }
                 
