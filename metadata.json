@@ -1,0 +1,8 @@
+{
+  "name": "Remix: Gemini CLI",
+  "description": "Mobile companion app for Gemini CLI featuring terminal-style interfaces, tool approvals, slash commands, agent telemetry, and session profiles.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
