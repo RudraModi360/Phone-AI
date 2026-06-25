@@ -108,7 +108,7 @@ interface ExaSearchApi {
 
 object ExaSearchClient {
 
-    const val API_KEY = "fda69e10-26ec-40a2-ab05-7404088f56ae"
+    val API_KEY = com.example.BuildConfig.EXA_API_KEY
     const val BASE_URL = "https://api.exa.ai/"
 
     private val moshi = Moshi.Builder()

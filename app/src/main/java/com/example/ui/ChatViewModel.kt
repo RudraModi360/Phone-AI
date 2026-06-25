@@ -224,21 +224,24 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
                 var gKey = settings["google_api_key"] ?: ""
                 if (gKey.isBlank()) {
-                    gKey = "AIzaSyB7sfStkrXLwzxEBfFtGxcmCnfxra0OEmQ"
+                    val defaultKey = com.example.BuildConfig.GOOGLE_API_KEY
+                    gKey = if (defaultKey == "YOUR_GOOGLE_API_KEY" || defaultKey == "MY_GOOGLE_API_KEY" || defaultKey.isBlank()) "" else defaultKey
                     settingDao.insertSetting(AppSetting("google_api_key", gKey))
                 }
                 _googleApiKey.value = gKey
 
                 var gCx = settings["google_cx"] ?: ""
                 if (gCx.isBlank()) {
-                    gCx = "d3c4eae8e0bc44663"
+                    val defaultCx = com.example.BuildConfig.GOOGLE_CX
+                    gCx = if (defaultCx == "YOUR_GOOGLE_CX" || defaultCx.isBlank()) "" else defaultCx
                     settingDao.insertSetting(AppSetting("google_cx", gCx))
                 }
                 _googleCx.value = gCx
 
                 var groqKey = settings["groq_api_key"] ?: ""
                 if (groqKey.isBlank()) {
-                    groqKey = "API KEY "
+                    val defaultGroq = com.example.BuildConfig.GROQ_API_KEY
+                    groqKey = if (defaultGroq == "YOUR_GROQ_API_KEY" || defaultGroq.isBlank()) "" else defaultGroq
                     settingDao.insertSetting(AppSetting("groq_api_key", groqKey))
                 }
                 _groqApiKey.value = groqKey
