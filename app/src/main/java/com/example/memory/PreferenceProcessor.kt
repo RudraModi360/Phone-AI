@@ -6,7 +6,7 @@ import com.example.data.MemoryEntry
  * Processes user preferences using Claude Code's pipeline:
  * Deduplicate → Categorize → Rank → Summarize
  *
- * Memory budget: max 500 chars for context block injection.
+ * Memory budget: max 800 chars for context block injection.
  */
 object PreferenceProcessor {
 

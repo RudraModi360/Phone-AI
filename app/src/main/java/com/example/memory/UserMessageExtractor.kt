@@ -26,7 +26,7 @@ object UserMessageExtractor {
         // === IDENTITY EXTRACTION ===
         // "My name is X" / "Call me X" / "I'm X"
         extractPattern(msg, listOf(
-            Regex("(?:my name is|call me|i'm|i am) ([A-Z][a-z]+(?: [A-Z][a-z]+)*)", RegexOption.IGNORE_CASE)
+            Regex("(?:my name is|call me|i'm|i am) ([a-zA-Z]+(?: [a-zA-Z]+)*)", RegexOption.IGNORE_CASE)
         ))?.let { name ->
             results.add(ExtractionResult(
                 type = MemoryType.USER,
