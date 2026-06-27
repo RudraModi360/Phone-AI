@@ -27,9 +27,9 @@ object PreferenceProcessor {
      * Keep the one with highest relevanceScore or most recent.
      */
     private fun deduplicate(preferences: List<MemoryEntry>): List<MemoryEntry> {
-        return preferences.groupBy { it.title.lowercase().trim() }
+        return preferences.groupBy { it.name.lowercase().trim() }
             .map { (_, group) ->
-                group.maxByOrNull { it.relevanceScore } ?: group.first()
+                group.maxByOrNull { it.updatedAt } ?: group.first()
             }
     }
 
@@ -64,7 +64,7 @@ object PreferenceProcessor {
     private fun rank(preferences: List<CategorizedPreference>): List<CategorizedPreference> {
         return preferences.sortedWith(
             compareByDescending<CategorizedPreference> { it.tier.priority }
-                .thenByDescending { it.entry.relevanceScore }
+                .thenByDescending { it.entry.updatedAt }
                 .thenByDescending { it.entry.usageCount }
         )
     }
@@ -82,11 +82,11 @@ object PreferenceProcessor {
                 if (cat.entry.content.length > 80) "$it..." else it
             }
             val entry = ProcessedPreference(
-                title = cat.entry.title,
+                title = cat.entry.name,
                 content = summarized,
                 tier = cat.tier,
                 memoryType = cat.entry.memoryType,
-                relevanceScore = cat.entry.relevanceScore
+                updatedAt = cat.entry.updatedAt
             )
             val entryChars = entry.title.length + entry.content.length + 4 // ": " + "\n"
             if (totalChars + entryChars > MAX_CONTEXT_CHARS) break
@@ -132,5 +132,5 @@ data class ProcessedPreference(
     val content: String,
     val tier: Tier,
     val memoryType: String,
-    val relevanceScore: Float
+    val updatedAt: Long
 )

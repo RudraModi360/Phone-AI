@@ -65,38 +65,38 @@ interface SettingDao {
 
 @Dao
 interface MemoryDao {
-    @Query("SELECT * FROM memory_entries ORDER BY relevanceScore DESC")
+    @Query("SELECT * FROM memory_entries ORDER BY updatedAt DESC")
     fun getAllMemories(): Flow<List<MemoryEntry>>
-    
-    @Query("SELECT * FROM memory_entries WHERE projectId = :projectId OR projectId IS NULL ORDER BY relevanceScore DESC")
+
+    @Query("SELECT * FROM memory_entries ORDER BY updatedAt DESC LIMIT :limit")
+    suspend fun getRecentMemories(limit: Int = 200): List<MemoryEntry>
+
+    @Query("SELECT * FROM memory_entries WHERE memoryType = :type ORDER BY updatedAt DESC")
+    suspend fun getMemoriesByType(type: String): List<MemoryEntry>
+
+    @Query("SELECT * FROM memory_entries WHERE projectId = :projectId OR projectId IS NULL ORDER BY updatedAt DESC")
     fun getMemoriesForProject(projectId: String?): Flow<List<MemoryEntry>>
-    
-    @Query("SELECT * FROM memory_entries WHERE content LIKE '%' || :query || '%' ESCAPE '\\' OR title LIKE '%' || :query || '%' ESCAPE '\\' ORDER BY relevanceScore DESC LIMIT :limit")
+
+    @Query("SELECT * FROM memory_entries WHERE content LIKE '%' || :query || '%' OR name LIKE '%' || :query || '%' ORDER BY updatedAt DESC LIMIT :limit")
     suspend fun searchMemories(query: String, limit: Int = 10): List<MemoryEntry>
-    
-    @Query("SELECT * FROM memory_entries WHERE (content LIKE '%' || :query || '%' ESCAPE '\\' OR title LIKE '%' || :query || '%' ESCAPE '\\') AND projectId = :projectId ORDER BY relevanceScore DESC LIMIT :limit")
-    suspend fun searchMemoriesByProject(query: String, projectId: String, limit: Int = 10): List<MemoryEntry>
-    
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMemory(memory: MemoryEntry): Long
-    
+
     @Update
     suspend fun updateMemory(memory: MemoryEntry)
-    
+
     @Query("UPDATE memory_entries SET usageCount = usageCount + 1 WHERE id = :id")
     suspend fun incrementUsageCount(id: Long)
-    
+
     @Query("DELETE FROM memory_entries WHERE id = :id")
     suspend fun deleteMemory(id: Long)
 
-    @Query("SELECT * FROM memory_entries WHERE memoryType = :type ORDER BY relevanceScore DESC")
-    suspend fun getMemoriesByType(type: String): List<MemoryEntry>
+    @Query("DELETE FROM memory_entries WHERE name = :name AND memoryType = :type")
+    suspend fun deleteByNameAndType(name: String, type: String)
 
-    @Query("DELETE FROM memory_entries WHERE memoryType = :type AND title = :title")
-    suspend fun deleteByTypeAndTitle(type: String, title: String)
-
-    @Query("SELECT * FROM memory_entries WHERE title = :title AND memoryType = :type LIMIT 1")
-    suspend fun findByTitleAndType(title: String, type: String): MemoryEntry?
+    @Query("SELECT * FROM memory_entries WHERE name = :name AND memoryType = :type LIMIT 1")
+    suspend fun findByNameAndType(name: String, type: String): MemoryEntry?
 }
 
 @Dao

@@ -25,6 +25,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.util.UUID
+import com.example.memory.ExtractionService
+import com.example.memory.MemoryRetrievalService
+import com.example.memory.MemorySurfaceTracker
+import com.example.memory.MemoryPromptBuilder
 
 enum class AgentState(val label: String, val icon: String) {
     IDLE("Ready", "⚡"),
@@ -40,6 +44,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val chatDao = db.chatDao()
     private val settingDao = db.settingDao()
     private val memoryService = com.example.memory.MemoryService(db.memoryDao())
+    private val surfaceTracker = MemorySurfaceTracker()
+    private val retrievalService = MemoryRetrievalService(memoryService, surfaceTracker)
+    private val extractionService = ExtractionService(memoryService)
     private val planService = com.example.planner.PlanService(db.planDao())
     private val trackerService = com.example.tracker.TrackerService(db.trackerDao())
     private val skillRegistry = SkillRegistry(application)
@@ -826,33 +833,31 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         _isThinking.value = true
         _statusText.value = if (initialText.isNotEmpty()) initialText else "Analyzing Prompt..."
 
-        // Query active context workspace memories for RAG injection
-        val relevantMemories = withContext(Dispatchers.IO) {
-            memoryService.getRelevantMemories(userText, projectId = sId)
+        // === TRACK B: Per-Turn Memory Surfacing ===
+        val surfacingResult = withContext(Dispatchers.IO) {
+            try {
+                retrievalService.findRelevantMemories(userText, projectId = sId)
+            } catch (e: Exception) {
+                Log.e("ChatViewModel", "Memory retrieval failed", e)
+                emptyList()
+            }
         }
-        val memoryContextPrompt = memoryService.formatForPrompt(relevantMemories)
+
+        val memoryContextPrompt = if (surfacingResult.isNotEmpty()) {
+            buildString {
+                appendLine("\n## Relevant Memories")
+                for (mem in surfacingResult) {
+                    appendLine("- **${mem.name}** (${mem.memoryType}): ${mem.description}")
+                    if (mem.content.length <= 500) {
+                        appendLine("  ${mem.content}")
+                    }
+                }
+            }
+        } else ""
 
         // Query user preferences for personalization injection
         val userPreferences = withContext(Dispatchers.IO) {
             memoryService.getUserPreferences()
-        }
-
-        // === EXTRACTION PIPELINE: Analyze user message for memories ===
-        withContext(Dispatchers.IO) {
-            try {
-                val extractions = com.example.memory.UserMessageExtractor.extract(userText)
-                for (extraction in extractions) {
-                    memoryService.saveExtractedMemory(
-                        type = extraction.type,
-                        title = extraction.title,
-                        content = extraction.content,
-                        confidence = extraction.confidence
-                    )
-                    Log.d("ChatViewModel", "Extracted memory: [${extraction.type.value}] ${extraction.title}")
-                }
-            } catch (e: Exception) {
-                Log.e("ChatViewModel", "Memory extraction failed", e)
-            }
         }
 
         // Get available tools descriptions
@@ -881,6 +886,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
             
             append("You are logy, an intelligent AI assistant on Android.\n\n")
+            append(com.example.memory.MemoryPromptBuilder.buildSystemPromptSection())
+            append("\n\n")
             
             // === USER CONTEXT ===
             val userContextBlock = UserContextBuilder.fromViewModel(
@@ -1322,24 +1329,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 )
 
-                // Save AI response insights to memory (better heuristics)
-                val shouldSaveResponse = cleanAiText.length > 50 && (
-                    cleanAiText.contains("learn", ignoreCase = true) ||
-                    cleanAiText.contains("decid", ignoreCase = true) ||
-                    cleanAiText.contains("configur", ignoreCase = true) ||
-                    cleanAiText.contains("recommend", ignoreCase = true) ||
-                    cleanAiText.contains("best practice", ignoreCase = true) ||
-                    cleanAiText.contains("you should", ignoreCase = true)
-                )
-                if (shouldSaveResponse) {
-                    val title = "Insight: " + userText.take(40).trim()
-                    memoryService.saveExtractedMemory(
-                        type = com.example.memory.MemoryType.PROJECT,
-                        title = title,
-                        content = cleanAiText.take(300),
-                        confidence = 0.6f
-                    )
-                }
+                // === TRACK D: End-of-Turn Extraction (fire-and-forget) ===
+                extractionService.extractAsync(userText, cleanAiText)
             }
         } catch (e: Exception) {
             Log.e("ChatViewModel", "API call failed", e)

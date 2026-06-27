@@ -43,13 +43,13 @@ data class AppSetting(
 @Entity(tableName = "memory_entries")
 data class MemoryEntry(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val memoryType: String,  // approach, learning, pattern, preference
-    val title: String,
+    val name: String,
+    val description: String,
+    val memoryType: String,
     val content: String,
-    val tags: String,        // JSON array as string
-    val projectId: String?,  // null = global
+    val projectId: String?,
     val createdAt: Long = System.currentTimeMillis(),
-    val relevanceScore: Float = 1.0f,
+    val updatedAt: Long = System.currentTimeMillis(),
     val usageCount: Int = 0
 )
 

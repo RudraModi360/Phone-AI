@@ -13,6 +13,9 @@ class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     
+    // Initialize Memory System Background Consolidation Task
+    com.example.memory.MemoryAppStartup.init(this)
+    
     // Register the current activity and initialize the Android path resolver
     com.example.tools.AndroidPathResolver.setCurrentActivity(this)
     com.example.tools.AndroidPathResolver.initWithContext(applicationContext)

@@ -97,16 +97,16 @@ class MemoryTool(private val memoryService: MemoryService) : BaseTool {
             "feedback" -> MemoryType.FEEDBACK
             "project", "learning", "approach", "key_step", "pattern", "decision", "context" -> MemoryType.PROJECT
             "reference" -> MemoryType.REFERENCE
-            else -> MemoryType.values().find { it.value == typeStr.lowercase() } ?: MemoryType.PROJECT
+            else -> MemoryType.entries.find { it.value == typeStr.lowercase() } ?: MemoryType.PROJECT
         }
         
-        val tags = if (tagsStr.isNotBlank()) {
-            tagsStr.split(",").map { it.trim() }
-        } else {
-            emptyList()
-        }
-        
-        val memoryId = memoryService.addMemory(type, title, content, tags, projectId)
+        val memoryId = memoryService.saveMemory(
+            name = title,
+            description = tagsStr.ifBlank { "Memory entry" },
+            type = type,
+            content = content,
+            projectId = projectId
+        )
         
         return ToolResult.success(
             "✅ Memory saved!\nID: $memoryId\nTitle: $title\nType: ${type.value}",
@@ -130,7 +130,7 @@ class MemoryTool(private val memoryService: MemoryService) : BaseTool {
             appendLine("🔍 Search results for: \"$query\" (${memories.size} found)")
             appendLine()
             memories.forEach { memory ->
-                appendLine("📌 [${memory.id}] ${memory.title}")
+                appendLine("📌 [${memory.id}] ${memory.name}")
                 appendLine("   Type: ${memory.memoryType} | Uses: ${memory.usageCount}")
                 appendLine("   ${memory.content.take(100)}${if (memory.content.length > 100) "..." else ""}")
                 appendLine()
@@ -172,7 +172,7 @@ class MemoryTool(private val memoryService: MemoryService) : BaseTool {
                 
                 appendLine("$icon ${type.uppercase()} (${typeMemories.size})")
                 typeMemories.take(5).forEach { memory ->
-                    appendLine("  [${memory.id}] ${memory.title}")
+                    appendLine("  [${memory.id}] ${memory.name}")
                 }
                 if (typeMemories.size > 5) {
                     appendLine("  ... and ${typeMemories.size - 5} more")
