@@ -59,6 +59,7 @@ import com.example.data.ChatMessage
 import com.example.service.ConnectionState
 import com.example.ui.components.*
 import com.example.ui.theme.*
+import com.example.ui.trace.*
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -98,6 +99,7 @@ fun MainHub(initialOpenTab: String? = null) {
     val showSlashPalette by viewModel.showSlashPalette.collectAsState()
     val statusText by viewModel.statusText.collectAsState()
     val telemetry by viewModel.telemetry.collectAsState()
+    val traceEvents by viewModel.traceEvents.collectAsState()
     val currentPermissionRequest by com.example.tools.PermissionManager.currentRequest.collectAsState()
 
     // Navigation Panels
@@ -106,6 +108,8 @@ fun MainHub(initialOpenTab: String? = null) {
     var showTelemetryDashboard by remember { mutableStateOf(false) }
     var showDocumentationViewer by remember { mutableStateOf(false) }
     var showRemindersScreen by remember { mutableStateOf(initialOpenTab == "reminders" || initialOpenTab == "clock") }
+    var showSandboxScreen by remember { mutableStateOf(false) }
+    var showAgentTraceScreen by remember { mutableStateOf(false) }
     
     // Mode selector expanded state
     var showReasoningLevelSelector by remember { mutableStateOf(false) }
@@ -535,6 +539,12 @@ fun MainHub(initialOpenTab: String? = null) {
                         },
                         onSettingsClicked = {
                             showSettings = true
+                        },
+                        onSandboxClicked = {
+                            showSandboxScreen = true
+                        },
+                        onTraceClicked = {
+                            showAgentTraceScreen = true
                         },
                         modifier = Modifier
                             .width(260.dp)
@@ -1129,6 +1139,12 @@ fun MainHub(initialOpenTab: String? = null) {
                         onDocsClicked = {
                             showDocumentationViewer = true
                         },
+                        onSandboxClicked = {
+                            showSandboxScreen = true
+                        },
+                        onTraceClicked = {
+                            showAgentTraceScreen = true
+                        },
                         modifier = Modifier.clickable(
                             interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                             indication = null
@@ -1204,6 +1220,40 @@ fun MainHub(initialOpenTab: String? = null) {
                     viewModel = viewModel,
                     onClose = { showRemindersScreen = false },
                     initialOpenTab = initialOpenTab
+                )
+            }
+
+            // 9. Diagnostics Sandbox Panel overlay slide
+            AnimatedVisibility(
+                visible = showSandboxScreen,
+                enter = fadeIn(animationSpec = tween(300, easing = FastOutSlowInEasing)) +
+                        scaleIn(initialScale = 0.95f, animationSpec = tween(300, easing = FastOutSlowInEasing)),
+                exit = fadeOut(animationSpec = tween(250, easing = FastOutLinearInEasing)) +
+                       scaleOut(targetScale = 0.95f, animationSpec = tween(250, easing = FastOutLinearInEasing))
+            ) {
+                SandboxScreen(
+                    currentSessionId = currentSessionId,
+                    messages = messages,
+                    isThinking = isThinking,
+                    isExecutingTool = isExecutingTool,
+                    currentToolName = currentToolName,
+                    onSendMessage = { viewModel.sendMessage(it) },
+                    onClose = { showSandboxScreen = false }
+                )
+            }
+
+            // 10. Agent Execution Trace Panel overlay slide
+            AnimatedVisibility(
+                visible = showAgentTraceScreen,
+                enter = fadeIn(animationSpec = tween(300, easing = FastOutSlowInEasing)) +
+                        scaleIn(initialScale = 0.95f, animationSpec = tween(300, easing = FastOutSlowInEasing)),
+                exit = fadeOut(animationSpec = tween(250, easing = FastOutLinearInEasing)) +
+                       scaleOut(targetScale = 0.95f, animationSpec = tween(250, easing = FastOutLinearInEasing))
+            ) {
+                AgentTraceScreen(
+                    events = traceEvents,
+                    onClear = { viewModel.clearTrace() },
+                    onClose = { showAgentTraceScreen = false }
                 )
             }
         }

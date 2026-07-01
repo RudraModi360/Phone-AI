@@ -40,6 +40,7 @@ fun SessionHistorySidebar(
     onSettingsClicked: () -> Unit = {},
     onDocsClicked: () -> Unit = {},
     onSandboxClicked: () -> Unit = {},
+    onTraceClicked: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var searchQuery by remember { mutableStateOf("") }
@@ -286,6 +287,35 @@ fun SessionHistorySidebar(
             Spacer(modifier = Modifier.width(12.dp))
             Text(
                 text = "Backend Diagnostics",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // ==================== 7. AGENT TRACE ENTRY ====================
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .scaleOnClick {
+                    onCloseSidebar()
+                    onTraceClicked()
+                }
+                .padding(vertical = 8.dp, horizontal = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.Search, // Let's use Icons.Default.Search or another icon, wait, let's use search or info
+                contentDescription = "Agent Trace",
+                tint = LogyBlue,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = "Agent Trace Logs",
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurface
