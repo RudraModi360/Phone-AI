@@ -29,6 +29,7 @@ import com.example.memory.ExtractionService
 import com.example.memory.MemoryRetrievalService
 import com.example.memory.MemorySurfaceTracker
 import com.example.memory.MemoryPromptBuilder
+import com.example.ui.trace.AgentTraceEvent
 
 enum class AgentState(val label: String, val icon: String) {
     IDLE("Ready", "⚡"),
@@ -53,6 +54,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val trackerService = com.example.tracker.TrackerService(db.trackerDao())
     private val skillRegistry = SkillRegistry(application)
     private val daemonService = DaemonService()
+
+    // === AGENT TRACE (debug page) ===
+    private val _traceEvents = MutableStateFlow<List<AgentTraceEvent>>(emptyList())
+    val traceEvents: StateFlow<List<AgentTraceEvent>> = _traceEvents
+
+    private fun addTraceEvent(type: AgentTraceEvent.EventType, title: String, content: String, metadata: Map<String, String> = emptyMap()) {
+        val event = AgentTraceEvent(type = type, title = title, content = content, metadata = metadata)
+        _traceEvents.value = _traceEvents.value + event
+        Log.d("AgentTrace", "[${type.name}] $title: ${content.take(100)}")
+    }
+
+    fun clearTrace() {
+        _traceEvents.value = emptyList()
+    }
     
     // Mode Controller for Planning/Execution/DeepThinking modes
     private val modeController = ModeController()
@@ -789,6 +804,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val sId = _currentSessionId.value ?: return
         val key = _apiKey.value
 
+        addTraceEvent(AgentTraceEvent.EventType.PHASE, "Turn started", "Session: $sId")
+        addTraceEvent(AgentTraceEvent.EventType.USER_MESSAGE, "User input", userText, mapOf("length" to "${userText.length}"))
+
         // Check remaining turns before proceeding
         val remainingTurns = agentRuntime.getRemainingTurns(sId)
         if (remainingTurns <= 0) {
@@ -836,14 +854,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         _statusText.value = if (initialText.isNotEmpty()) initialText else "Analyzing Prompt..."
 
         // === TRACK B: Per-Turn Memory Surfacing ===
+        addTraceEvent(AgentTraceEvent.EventType.PHASE, "Memory retrieval started", "Querying relevant memories...")
         val surfacingResult = withContext(Dispatchers.IO) {
             try {
                 retrievalService.findRelevantMemories(userText, projectId = sId)
             } catch (e: Exception) {
                 Log.e("ChatViewModel", "Memory retrieval failed", e)
+                addTraceEvent(AgentTraceEvent.EventType.ERROR, "Memory retrieval failed", e.message ?: "unknown")
                 emptyList()
             }
         }
+        addTraceEvent(AgentTraceEvent.EventType.MEMORY_RETRIEVAL, "Memory retrieval result", "${surfacingResult.size} memories found", mapOf("query" to userText.take(100)))
 
         val memoryContextPrompt = if (surfacingResult.isNotEmpty()) {
             buildString {
@@ -984,6 +1005,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
         
         Log.d("ChatViewModel", "System prompt built (${finalSystemPrompt.length} chars) for mode: $currentMode")
+        addTraceEvent(AgentTraceEvent.EventType.SYSTEM_PROMPT, "System prompt built", finalSystemPrompt, mapOf("length" to "${finalSystemPrompt.length}", "mode" to currentMode.name))
         
         val apiMessages = mutableListOf<OpenCodeMessage>()
         apiMessages.add(
@@ -1037,6 +1059,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         
         Log.d("ChatViewModel", "Built request URL: $requestUrl from base: $base")
 
+        val historySummary = conversationHistory.takeLast(10).joinToString("\n") { "[${it.role}] ${it.content.take(100)}" }
+        addTraceEvent(AgentTraceEvent.EventType.API_REQUEST, "API request prepared", "URL: $requestUrl\nModel: ${_selectedModel.value}\nHistory messages: ${conversationHistory.size}\n\n--- CONVERSATION HISTORY ---\n$historySummary", mapOf("url" to requestUrl, "model" to _selectedModel.value, "history_count" to "${conversationHistory.size}"))
+
         try {
             _statusText.value = "Thinking..."
             Log.d("ChatViewModel", "Calling streaming API with model: ${_selectedModel.value}")
@@ -1065,6 +1090,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             var aiText = ""
+            var streamChunkCount = 0
             
             withContext(Dispatchers.IO) {
                 provider.chatStream(
@@ -1072,6 +1098,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     tools = null,
                     systemInstruction = finalSystemPrompt
                 ).collect { chunk ->
+                    streamChunkCount++
                     chunk.content?.let { contentPiece ->
                         // Skip thinking blocks for display (they're for internal use)
                         if (!contentPiece.startsWith("<think>")) {
@@ -1099,6 +1126,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
             _isThinking.value = false
             _statusText.value = "Operational"
+
+            addTraceEvent(AgentTraceEvent.EventType.API_RESPONSE, "Streaming complete", aiText, mapOf("chunks" to "$streamChunkCount", "length" to "${aiText.length}"))
 
             // Now parse if there's any tool JSON call in the markdown response!
             var foundToolCall = false
@@ -1135,6 +1164,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         // Check if tool exists in registry
                         val tool = com.example.tools.ToolRegistry.get(mappedToolName)
                         if (tool != null) {
+                            addTraceEvent(AgentTraceEvent.EventType.TOOL_CALL, "Tool call detected", "Tool: $mappedToolName\nArgs: $toolObj", mapOf("tool" to mappedToolName, "risk" to tool.riskLevel.name))
                             // Build tool arguments
                             val toolArgsMap = mutableMapOf<String, Any?>()
                             toolObj.keys().forEach { key ->
@@ -1154,7 +1184,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             val jsonStart = range.first
                             val preToolText = if (jsonStart > 0) {
                                 sanitizeAndCleanMarkdown(aiText.substring(0, jsonStart))
-                            } else ""
+        } else ""
+
+        if (memoryContextPrompt.isNotEmpty()) {
+            addTraceEvent(AgentTraceEvent.EventType.MEMORY_CONTEXT, "Memory context injected", memoryContextPrompt, mapOf("length" to "${memoryContextPrompt.length}"))
+        }
 
                             // Update original model message with the explanation (if any)
                             if (preToolText.isNotBlank()) {
@@ -1214,6 +1248,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                                     }
                                     val duration = System.currentTimeMillis() - startTime
                                     Log.d("ChatViewModel", "Tool $mappedToolName executed in ${duration}ms, success=${toolResult.success}")
+                                    addTraceEvent(AgentTraceEvent.EventType.TOOL_RESULT, "Tool result: $mappedToolName", "Success: ${toolResult.success}\nDuration: ${duration}ms\n\nContent:\n${toolResult.content ?: toolResult.error}", mapOf("tool" to mappedToolName, "duration_ms" to "$duration", "success" to "${toolResult.success}"))
                                 
                                 // Insert result message
                                 val resultContent = if (toolResult.success) {
@@ -1314,6 +1349,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     cleanAiText = "⚠️ Model returned an empty response. Proceeding with execution or waiting for next user input."
                 }
                 
+                addTraceEvent(AgentTraceEvent.EventType.ASSISTANT_REPLY, "Final assistant reply", cleanAiText, mapOf("length" to "${cleanAiText.length}"))
+                
                 // Just finalize - streaming already displayed the text
                 chatDao.updateMessage(
                     ChatMessage(
@@ -1326,10 +1363,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 )
 
                 // === TRACK D: End-of-Turn Extraction (fire-and-forget) ===
+                addTraceEvent(AgentTraceEvent.EventType.MEMORY_EXTRACTION, "Extraction triggered", "User: ${userText.take(200)}\n\nAI: ${cleanAiText.take(200)}")
                 extractionService.extractAsync(userText, cleanAiText)
             }
         } catch (e: Exception) {
             Log.e("ChatViewModel", "API call failed", e)
+            addTraceEvent(AgentTraceEvent.EventType.ERROR, "API call failed", "${e.javaClass.simpleName}: ${e.message}\n\n${e.stackTraceToString()}")
             _isThinking.value = false
             _statusText.value = "Error"
             
