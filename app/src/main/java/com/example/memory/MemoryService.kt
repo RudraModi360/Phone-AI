@@ -66,10 +66,6 @@ class MemoryService(private val memoryDao: MemoryDao) {
         memoryDao.incrementUsageCount(id)
     }
 
-    suspend fun getUserPreferences(): List<MemoryEntry> {
-        return memoryDao.getMemoriesByType(MemoryType.USER.value)
-    }
-
     suspend fun getRelevantMemories(query: String, projectId: String? = null, limit: Int = 5): List<MemoryEntry> {
         val escapedQuery = escapeLikeQuery(query)
         return memoryDao.searchMemories(escapedQuery, limit)
@@ -83,19 +79,5 @@ class MemoryService(private val memoryDao: MemoryDao) {
                 appendLine("- **${memory.name}** (${memory.memoryType}): ${memory.content}")
             }
         }
-    }
-
-    suspend fun saveExtractedMemory(
-        type: MemoryType,
-        title: String,
-        content: String,
-        confidence: Float
-    ): Long {
-        return saveMemory(
-            name = title,
-            description = "Auto-extracted with confidence $confidence",
-            type = type,
-            content = content
-        )
     }
 }

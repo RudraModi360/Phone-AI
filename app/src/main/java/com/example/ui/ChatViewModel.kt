@@ -45,8 +45,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val settingDao = db.settingDao()
     private val memoryService = com.example.memory.MemoryService(db.memoryDao())
     private val surfaceTracker = MemorySurfaceTracker()
-    private val retrievalService = MemoryRetrievalService(memoryService, surfaceTracker)
-    private val extractionService = ExtractionService(memoryService)
+    private val retrievalService: MemoryRetrievalService
+        get() = MemoryRetrievalService(memoryService, surfaceTracker, opencodeBaseUrl.value, _selectedModel.value)
+    private val extractionService: ExtractionService
+        get() = ExtractionService(memoryService, opencodeBaseUrl.value, _selectedModel.value)
     private val planService = com.example.planner.PlanService(db.planDao())
     private val trackerService = com.example.tracker.TrackerService(db.trackerDao())
     private val skillRegistry = SkillRegistry(application)
@@ -855,11 +857,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
         } else ""
 
-        // Query user preferences for personalization injection
-        val userPreferences = withContext(Dispatchers.IO) {
-            memoryService.getUserPreferences()
-        }
-
         // Get available tools descriptions
         val toolDescriptions = com.example.tools.ToolRegistry.getToolDescriptions()
         
@@ -889,11 +886,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             append(com.example.memory.MemoryPromptBuilder.buildSystemPromptSection())
             append("\n\n")
             
-            // === USER CONTEXT ===
+            // === USER CONTEXT (profile + device only) ===
             val userContextBlock = UserContextBuilder.fromViewModel(
                 profileName = _profileName.value,
                 profileRole = _profileRole.value,
-                preferences = userPreferences,
                 context = getApplication()
             ).build()
             if (userContextBlock.isNotEmpty()) {
